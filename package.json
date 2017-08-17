@@ -1,0 +1,41 @@
+{
+  "name": "psd-to-svg",
+  "version": "0.1.1",
+  "author": {
+    "name": "Clarence-pan",
+    "email": "clarence.pchy@gmail.com",
+    "url": "https://clarencep.com"
+  },
+  "description": "A convertor which converts .psd file to .svg file.",
+  "tags": [
+    "convert",
+    "psd",
+    "svg"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:Clarence-pan/node-psd-to-svg.git"
+  },
+  "files": [
+    "src",
+    "bin"
+  ],
+  "bin": {
+    "psd-to-svg": "./bin/psd-to-svg.js"
+  },
+  "license": "MIT",
+  "keywords": [
+    "lodash",
+    "lodash-modularized",
+    "stdlib",
+    "util"
+  ],
+  "dependencies": {
+    "cb2p": "^1.1.0",
+    "co": "^4.6.0",
+    "debug": "^2.3.3",
+    "node-getopt": "^0.2.3",
+    "psd": "^3.1.0",
+    "util": "^0.10.3"
+  }
+}
