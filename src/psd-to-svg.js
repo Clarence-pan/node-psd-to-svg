@@ -12,12 +12,14 @@ const mkdir = cb2p(fs.mkdir)
 const exists = cb2p(fs.exists)
 const writeFile = cb2p(fs.writeFile)
 
+const warn = (msg, ...args) => debug("Warn: " + msg, ...args)
+
 module.exports = function (inputFile, outputFile, options) {
     return co(function*() {
         options = Object.assign({}, options)
 
         var outputDir = path.dirname(outputFile)
-        var outputResourceDir = options.outputResouceDir || path.join(outputDir, path.basename(outputFile).replace(/\.htm(l?)$/, '') + '_files')
+        var outputResourceDir = options.outputResouceDir || path.join(outputDir, path.basename(outputFile) + '.files.d')
         var outputResourceUrlBase = options.outputResourceUrlBase || path.relative(outputDir, outputResourceDir)
 
         debug(`Parsing ${inputFile} to ${outputFile} with resources in ${outputResourceDir}`)
@@ -33,12 +35,29 @@ module.exports = function (inputFile, outputFile, options) {
             debug(`Failed to make directory ${outputResourceDir}: `, e)
         }
 
-
         var zIndex = 10000
         var psdRoot = psd.tree()
-        //debug(psdRoot)
-        var domRoot = {}
+        // debug(psdRoot)
+        var domRoot = {
+            tagName: 'svg',
+            width: psdRoot.coords.right,
+            height: psdRoot.coords.bottom,
+            xmlns: 'http://www.w3.org/2000/svg',
+            'xmlns:xlink': 'http://www.w3.org/1999/xlink',
+            children: []
+        }
+
+        var domImagesGroup = {
+            tagName: 'g',
+            children: [],
+        }
+
         scanTree(psdRoot, domRoot, 0)
+
+        domRoot.children.push(domImagesGroup)
+
+        // psd中的层与层之间的z轴排列顺序与svg是反的
+        reverseDomTree(domRoot)
 
         debug("Got DOM tree: ")
         debug(util.inspect(domRoot, true, 10, true))
@@ -69,37 +88,45 @@ module.exports = function (inputFile, outputFile, options) {
 
             var children = psdNode.children()
 
-            var isLink = /\|link$/.test(psdNode.name)
-
-            Object.assign(svgNode, {
-                tagName: isLink ? 'a' : 'div',
-                className: psdNode.type,
-                id: 'p' + id,
-                children: [],
-                style: {
-                    'z-index': zIndex--,
-                    top: psdNode.coords.top + 'px',
-                    left: psdNode.coords.left + 'px',
-                    width: (psdNode.coords.right - psdNode.coords.left) + 'px',
-                    height: (psdNode.coords.bottom - psdNode.coords.top) + 'px',
-                },
-                'data-node-name': psdNode.name
-            })
-
-            if (isLink) {
-                svgNode.href = 'javascript:;'
+            if (psdNode.type === 'group') {
+                svgNode.tagName = 'g'
+                svgNode.children = []
+                children.forEach((childPsdNode, i) => {
+                    var childDomNode = {}
+                    svgNode.children.push(childDomNode)
+                    scanTree(childPsdNode, childDomNode, `${id}_${i}`)
+                })
+            } else if (psdNode.type === 'root'){
+                svgNode.tagName = 'svg'
+                svgNode.children = []
+                children.forEach((childPsdNode, i) => {
+                    var childDomNode = {}
+                    svgNode.children.push(childDomNode)
+                    scanTree(childPsdNode, childDomNode, `${id}_${i}`)
+                })
+            } else if (psdNode.type === 'layer') {
+                if (psdNode.layer){
+                    Object.assign(svgNode, {
+                        tagName: 'rect',
+                        className: psdNode.type,
+                        id: 'p' + id,
+                        x: psdNode.coords.left,
+                        y: psdNode.coords.top,
+                        width: (psdNode.coords.right - psdNode.coords.left),
+                        height: (psdNode.coords.bottom - psdNode.coords.top) ,
+                        'data-node-name': psdNode.name,
+                        style: {},
+                        children: [],
+                    })
+                    
+                    fillSvgNodeFromPsdNode(psdNode, svgNode, id);
+                } else {
+                    warn('layer has not data!')
+                }
+            } else {
+                warn('Unknown PSD Node type: ', psdNode.type)
             }
 
-            if (psdNode.type === 'layer'
-                && psdNode.layer) {
-                fillSvgNodeFromPsdNode(psdNode, svgNode, id);
-            }
-
-            children.forEach((childPsdNode, i) => {
-                var childDomNode = {}
-                domRoot.children.push(childDomNode)
-                scanTree(childPsdNode, childDomNode, `${id}_${i}`)
-            })
         }
 
         /**
@@ -111,7 +138,7 @@ module.exports = function (inputFile, outputFile, options) {
         function fillSvgNodeFromPsdNode(psdNode, svgNode, id) {
             if (!psdNode.layer.visible) {
                 debug(`ignore invisible layer ${id} ${psdNode.name}`)
-                svgNode.style.display = 'none'
+                svgNode.isValid = false
                 return;
             }
 
@@ -122,44 +149,100 @@ module.exports = function (inputFile, outputFile, options) {
                 var text = exportedPsdNode.text
                 if (text) {
                     debug(`rendering text node ${id}: `, text)
+                    // debugger;
 
+                    svgNode.tagName = 'text'
                     svgNode.className = svgNode.className + ' text'
-                    svgNode.innerText = text.value
 
-                    var textLines = text.value.split("\r").length || text.value.split("\n").length
-                    svgNode.style['line-height'] = (Math.round((psdNode.coords.bottom - psdNode.coords.top) / textLines) + 1) + 'px'
-
-                    var font = text.font;
+                    let textLines = text.value.split("\r").length || text.value.split("\n").length
+                    let fontSize = 16
+                    let font = text.font;
                     if (font) {
                         if (font.sizes && font.sizes[0]) {
+                            fontSize = font.sizes[0]
                             svgNode.style['font-size'] = font.sizes[0] + 'px'
                         }
 
                         if (font.colors && font.colors[0]) {
                             var color = font.colors[0]
                             svgNode.style['color'] = `rgb(${color[0]}, ${color[1]}, ${color[2]})`
+                            svgNode.fill = `rgb(${color[0]}, ${color[1]}, ${color[2]})`
                         }
 
                         if (font.alignment && font.alignment[0]) {
                             svgNode.style['text-align'] = font.alignment[0]
                         }
                     }
+                    
+                    svgNode['xml:space'] = 'preserve'
+                    svgNode.children = autoWrapText(text.value, fontSize, fontSize * 1.8, svgNode.width, svgNode.x)
 
                     return;
                 }
             }
 
+            // else image layer
             if (psdNode.layer.image
                 && psdNode.layer.image.saveAsPng) {
                 debug(`saving ${outputResourceDir}/${id}.png`)
 
                 psdNode.layer.image.saveAsPng(`${outputResourceDir}/${id}.png`)
-                svgNode.style['background-image'] = `url(${outputResourceUrlBase}/${id}.png)`
+                // svgNode.style['background-image'] = `url(${outputResourceUrlBase}/${id}.png)`
+                svgNode.tagName = "image"
+                svgNode['xlink:href'] = `${outputResourceUrlBase}/${id}.png`
             }
         }
     })
 };
 
+function reverseDomTree(node) {
+    if (node.tagName !== 'text' && node.children){
+        node.children.reverse()
+        node.children.forEach(x => {
+            reverseDomTree(x)
+        })
+    }
+}
+
+function autoWrapText(text, fontSize, lineHeight, containerWidth, containerLeft) {
+    let tspans = []
+    let lines = text.split(/\r|\n|\r\n/);
+    lines.forEach(line => {
+        let tspanBegin = 0
+        let tspanWidth = 0
+        let i = 0, n = line.length
+        for (; i < n; i++){
+            let charCode = line.charCodeAt(i)
+            let nextWidth = tspanWidth + (charCode === 32 ? 0.3125 : (charCode < 256 ? 0.5 : 1)) * fontSize
+            if (nextWidth - fontSize * 0.5 > containerWidth){
+                tspans.push({
+                    tagName: 'tspan',
+                    x: containerLeft,
+                    dy: lineHeight + 'px',
+                    innerText: line.substring(tspanBegin, i),
+                    'data-text-width': tspanWidth,
+                })
+
+                tspanBegin = i
+                tspanWidth = nextWidth - tspanWidth
+            } else {
+                tspanWidth = nextWidth
+            }
+        }
+
+        tspans.push({
+            tagName: 'tspan',
+            x: containerLeft,
+            dy: lineHeight + 'px',
+            innerText: line.substring(tspanBegin, i),
+            'data-text-width': tspanWidth,
+        })
+    })
+
+    tspans[0].dy = fontSize;
+
+    return tspans
+}
 
 function inspectTreeNode(node, id) {
     if (!node) {
@@ -202,8 +285,6 @@ function inspectTreeNode(node, id) {
  */
 function fullfillSvg(main) {
     return `<?xml version="1.0" standalone="no"?>
-<svg>
-    ${main}
-</svg>
-    `
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+  ${main}`
 }
