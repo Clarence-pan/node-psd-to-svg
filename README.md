@@ -17,8 +17,8 @@ Run
 Please see the help:
 
 ```sh
-$ node path/to/psd-to-svg/bin/psd-to-svg --help
- Usage: node psd-to-svg.js <input-psd-file>
+$ psd-to-svg --help
+ Usage: psd-to-svg <input-psd-file>
 
    <input-psd-file>         Input .psd file
    -o, --output=OUTPUT      Output .svg file
