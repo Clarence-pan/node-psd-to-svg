@@ -24,7 +24,13 @@ module.exports = function (inputFile, outputFile, options) {
 
         debug(`Parsing ${inputFile} to ${outputFile} with resources in ${outputResourceDir}`)
 
-        var psd = PSD.fromFile(inputFile)
+        var psd;
+        if (typeof inputFile === 'string') {
+            psd = PSD.fromFile(inputFile)
+        } else if (inputFile instanceof ArrayBuffer || inputFile instanceof Buffer) {
+            psd = new PSD(inputFile)
+        }
+
         if (!psd || !psd.parse()) {
             throw new Error('Failed to parse PSD file ' + inputFile)
         }
