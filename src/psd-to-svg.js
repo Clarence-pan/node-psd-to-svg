@@ -121,7 +121,7 @@ module.exports = function (inputFile, outputFile, options) {
                     
                     fillSvgNodeFromPsdNode(psdNode, svgNode, id);
                 } else {
-                    warn('layer has not data!')
+                    warn('layer has no data!')
                 }
             } else {
                 warn('Unknown PSD Node type: ', psdNode.type)
