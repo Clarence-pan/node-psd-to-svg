@@ -24,7 +24,13 @@ module.exports = function (inputFile, outputFile, options) {
 
         debug(`Parsing ${inputFile} to ${outputFile} with resources in ${outputResourceDir}`)
 
-        var psd = PSD.fromFile(inputFile)
+        var psd;
+        if (typeof inputFile === 'string') {
+            psd = PSD.fromFile(inputFile)
+        } else if (inputFile instanceof ArrayBuffer || inputFile instanceof Buffer) {
+            psd = new PSD(inputFile)
+        }
+
         if (!psd || !psd.parse()) {
             throw new Error('Failed to parse PSD file ' + inputFile)
         }
@@ -121,7 +127,7 @@ module.exports = function (inputFile, outputFile, options) {
                     
                     fillSvgNodeFromPsdNode(psdNode, svgNode, id);
                 } else {
-                    warn('layer has not data!')
+                    warn('layer has no data!')
                 }
             } else {
                 warn('Unknown PSD Node type: ', psdNode.type)

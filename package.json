@@ -1,12 +1,12 @@
 {
   "name": "psd-to-svg",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "author": {
     "name": "Clarence-pan",
     "email": "clarence.pchy@gmail.com",
     "url": "https://clarencep.com"
   },
-  "description": "A convertor which converts .psd file to .svg file.",
+  "description": "A conversor which converts .psd file to .svg file.",
   "tags": [
     "convert",
     "psd",
