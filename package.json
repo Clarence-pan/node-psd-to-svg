@@ -16,6 +16,7 @@
     "type": "git",
     "url": "git@github.com:Clarence-pan/node-psd-to-svg.git"
   },
+  "main": "src/psd-to-svg.js",
   "files": [
     "src",
     "bin"
